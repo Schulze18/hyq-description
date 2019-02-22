@@ -3,7 +3,7 @@
 <robot xmlns:xacro="http://ros.org/wiki/xacro">
 
 	<gazebo>
-		<plugin name="gazebo_ros_controller_manager" filename="libgazebo_ros_control.so">
+		<!--<plugin name="gazebo_ros_controller_manager" filename="libgazebo_ros_control.so">
 			<robotNamespace>/hyq</robotNamespace>
 			<robotSimType>dls_gazebo_interface/DLSHWSim</robotSimType>
 			<controlPeriod>0.004</controlPeriod>
@@ -19,7 +19,8 @@
 			<gaussianNoise>0</gaussianNoise>
 			<alwaysOn>true</alwaysOn>
 			<updateRate>250.0</updateRate>
-		</plugin>
+		</plugin> -->
+		<plugin name="hyq_control" filename="$(find hyq_description)/gazebo_plugins/build/libHyQJointAngleControl.so"/> 
 	</gazebo>
 
 </robot>

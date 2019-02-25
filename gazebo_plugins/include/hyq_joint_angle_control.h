@@ -59,10 +59,11 @@ namespace gazebo
 		public: void Load( physics::ModelPtr _parent, sdf::ElementPtr _sdf );
 
 		/// \brief Update the controller
-		protected: virtual void UpdateChild();
+		public: void low_control_callback(const ros::TimerEvent& event);
 
-		public: void joint_control_callback(const ros::TimerEvent& event);
-
+		public: void update_joint_state();
+	
+		public: void joint_control();
 		
 		//Variables
 		private: physics::WorldPtr world;
@@ -71,9 +72,36 @@ namespace gazebo
 
 		private: ros::Timer pubTimer;
 
+		private: physics::Joint_V joints;
+		
 		// A node use for ROS transport
 		private: std::unique_ptr<ros::NodeHandle> rosNode;
-      
+
+		//Control variable
+		private: double joint_pos[12];
+
+		private: double joint_vel[12];
+
+		private: double joint_pos_ref[12] = {0, 0.8, -1.6, 0, -0.8, 1.6, 0, 0.8, -1.6, 0, -0.8, 1.6};
+
+		private: double joint_vel_ref[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+		private: double joint_actuator[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+		private: double old_joint_actuator[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+		// A flag to initialize the controller only after the first reference command
+		private: int flag_inicio = 1; 
+
+		private: int cont_it = 0; 
+
+		private: int cont_control_it = 0; 
+
+		private: double KP_joint = 60;
+		
+		private: double KD_joint = 1;
+
+    
    };
 
 }

@@ -57,6 +57,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 namespace gazebo
 {
@@ -88,54 +89,101 @@ void HyQJointAngleControl::Load( physics::ModelPtr parent, sdf::ElementPtr sdf )
 	
 	this->world = parent->GetWorld();
 	this->model = parent; 
-	//this->model->GetLinks()[0]->SetLinearVel(math::Vector3(0,0,0.1));
-	//this->model->SetLinearVel(math::Vector3(0,0,0.1));
+	this->joints = this->model->GetJoints();
+	
+	math::Pose pose_hyq_test;
+	//pose_hyq_test.pos.z = 5;
+	//pose_hyq_test.pos.x = 5;
+	//this->model->SetWorldPose(pose_hyq_test);
 
 	std::cout << "\nNome modelo: " << this->model->GetName() << "\n";
 	std::cout << "\nNome mundo: " << this->world->GetName() << "\n";
-
-	//std::cerr << "\njoint_test: " << this->model->GetChildLink() << "\n";
-
-	//std::cerr << "\njoint_test: " << this->model->GetChildLink()[0].GetName() << "\n";
-
-	//std::cerr << "\njoint_test: " << this->model->GetChildJoints()[0].GetName() << "\n";
-	
-	//std::vector<JointPtr> joint_test;// = this->model->GetJoints(); 
-	//physics::JointPtr joint_test =  this->model->GetJoints();
-	physics::Joint_V joint_test = this->model->GetJoints();
-	std::cout << "\nNumber joints: " << joint_test.size()  << "\n";
-	std::cout << "\nName joint 1: " << (joint_test[0])->GetName()  << "\n";
-	
-	math::Angle angle_test;
-	angle_test.SetFromDegree(10);
-	//(joint_test[0])->SetAngle(0,angle_test);	
-
-	angle_test = (joint_test[0])->GetAngle(0);
-
-	std::cout << "test angle " <<  angle_test << "\n";
 
 	// Create our ROS node. This acts in a similar manner to the Gazebo node
 	this->rosNode.reset(new ros::NodeHandle("hyq_gazebo_client"));
 
 	// Configure Timer and callback function
-	this->pubTimer = this->rosNode->createTimer(ros::Duration(0.5), &HyQJointAngleControl::joint_control_callback,this);
+	this->pubTimer = this->rosNode->createTimer(ros::Duration(0.001), &HyQJointAngleControl::low_control_callback,this);
 
+	//std:string joint_name;
+	/*this->pid_joint = common::PID(10, 0, 0.1);
+	for (int i = 0; i < 12; i++){
+		//joint_name = (this->model->GetJoints()[i])->GetScopedName();
+		this->jointController.reset(new physics::JointController(this->model));
+        	//this->jointController->AddJoint(joint_name);
+       		//this->jointController->SetPositionPID(joint_name, this->pid_joint);
+		this->jointController->AddJoint(joint_test[i]) ;
+       		this->jointController->SetPositionPID((joint_test[i])->GetName(), this->pid_joint);
+
+	}*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Update the controller
-void HyQJointAngleControl::UpdateChild()
-{
+void HyQJointAngleControl::low_control_callback(const ros::TimerEvent& event){
+
+	if (this->cont_it < 5000) {
+		this->cont_it++;
+		this->flag_inicio = 0;
+	}
+	else {
+		this->flag_inicio = 1;
+	}
+
+	if (this->flag_inicio == 1) {
+
+		this->update_joint_state();
+
+		this->joint_control();
+	
+	}
+
 }
 
+void HyQJointAngleControl::update_joint_state(){
+	math::Angle angle_joint;
+	for (int i = 0; i < this->joints.size(); i++){
+		this->joint_pos[i] = (this->joints[i])->GetAngle(0).Radian();
+		this->joint_vel[i] = (this->joints[i])->GetVelocity(0);
+		std::cout << "joint " << i+1 << " " << this->joint_pos[i] << " vel: " << this->joint_vel[i] << "\n";
+	}
+	std::cout << "\n\n";
+}
 
-void HyQJointAngleControl::joint_control_callback(const ros::TimerEvent& event){
+void HyQJointAngleControl::joint_control(){
 	//std::cout << "test hue\n";
-	physics::Joint_V joint_test = this->model->GetJoints();
-	math::Angle angle_test;
-	angle_test = (joint_test[0])->GetAngle(0);
+	//physics::Joint_V joint_test = this->model->GetJoints();
+	//math::Angle angle_test;
+	//angle_test = (joint_test[0])->GetAngle(0);
+	//std::cout << "test angle " <<  angle_test << "\n";
+	
+	//std:string joint_name;
 
-	std::cout << "test angle " <<  angle_test << "\n";
+	for (int i = 0; i < this->joints.size(); i++){
+		
+		if (this->cont_control_it < 4) this->cont_control_it++;
+		else this->cont_control_it = 0;
+
+		if (this->cont_control_it == 0){
+			this->joint_actuator[i] = this->KP_joint*(this->joint_pos_ref[i] - this->joint_pos[i]) + this->KD_joint*(this->joint_vel_ref[i] - this->joint_vel[i]);
+		}
+
+		(this->joints[i])->SetForce(0, (this->joint_actuator[i]));
+		//(this->joints[i])->SetForce(0, (this->joint_actuator[i] - this->old_joint_actuator[i]));
+		
+		this->old_joint_actuator[i] = this->joint_actuator[i];
+
+		/*
+		angle_test = (joint_test[i])->GetAngle(0);
+		std::cout << "test angle " << i << ":" << angle_test << "\n";
+		//(joint_test[i])->SetPosition(0, this->joint_pos_ref[i]);
+
+		//joint_name = (joint_test[i])->GetScopedName();
+        	//this->jointController->SetPositionTarget(joint_name, this->joint_pos_ref[i]);
+		this->jointController->SetPositionTarget((joint_test[i])->GetName(), this->joint_pos_ref[i]);
+ 		this->jointController->Update();*/
+	}
+	//std::cout << "\n\n";
+
 }
 
 

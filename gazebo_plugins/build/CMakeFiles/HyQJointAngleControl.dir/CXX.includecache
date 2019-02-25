@@ -83,6 +83,8 @@ stdio.h
 -
 stdlib.h
 -
+string.h
+-
 
 /opt/ros/kinetic/include/boost_161_condition_variable.h
 boost/thread/detail/platform.hpp

@@ -46,6 +46,7 @@
 //Message types
 #include <sensor_msgs/Imu.h>
 #include <std_msgs/Float64MultiArray.h> 
+#include "inv_dyn_hyq.h"
 
 namespace gazebo
 {
@@ -68,11 +69,19 @@ namespace gazebo
 	
 		public: void joint_control();
 		
+		public: void inverse_dynamics();
 
 		//Methods to update joint reference
 		public: void OnRosMsg(const std_msgs::Float64MultiArrayConstPtr& msg);
 
 		public: void QueueThread();
+
+		//Functions for delta time check
+		public: double get_wall_time();
+		
+		public: double get_cpu_time();
+
+
 
 		//Variables
 		private: physics::WorldPtr world;
@@ -86,11 +95,16 @@ namespace gazebo
 		// A node use for ROS transport
 		private: std::unique_ptr<ros::NodeHandle> rosNode;
 
-		//Control variable
+		//Joint Variables
 		private: double joint_pos[12];
 
 		private: double joint_vel[12];
 
+		private: double joint_accel[12];
+
+		private: double hyq_cm_vel[6];
+
+		//Control Variables
 		private: double joint_pos_ref[12] = {0, 0.8, -1.6, 0, -0.8, 1.6, 0, 0.8, -1.6, 0, -0.8, 1.6};
 		//private: double joint_pos_ref[12] = {-0.2, 0.75, -1.5, -0.2, -0.75, 1.5, -0.2, 0.75, -1.5, -0.2, -0.75, 1.5};
 
@@ -98,21 +112,26 @@ namespace gazebo
 
 		private: double joint_actuator[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
+		private: double inv_dyn_tau[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
 		private: double old_joint_actuator[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 		// A flag to initialize the controller only after the first reference command
 		private: int flag_inicio = 1; 
-
 
 		//Joint low control parameters
 		private: int cont_it = 0; 
 
 		private: int cont_control_it = 0; 
 
-		private: double KP_joint = 260;//260; //250;
+		private: double KP_joint = 600;//260;//260;//260; //250;
 		
-		private: double KD_joint = 8; //10;
+		private: double KD_joint = 10;//8; //10;
 
+		private: const double update_time = 0.001;
+
+		//Instance model class from MATLAB for inverse dynamics
+		public: inv_dyn_hyqModelClass inv_dyn_obj;   
 
 		//Variables from topic to receive joint reference
 		// A ROS callbackqueue that helps process messages
@@ -124,7 +143,8 @@ namespace gazebo
 		// A ROS subscriber
 		private: ros::Subscriber rosSub_ref;    
 
-
+		// Store the time expended by the CPU
+		private: double delta_cpu_time = 0;
    };
 
 }

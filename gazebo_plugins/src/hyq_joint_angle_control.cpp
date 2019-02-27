@@ -60,7 +60,12 @@
 #include <string.h>
 //Message types
 #include <sensor_msgs/Imu.h> 
-#include <std_msgs/Float64MultiArray.h> 
+#include <std_msgs/Float64MultiArray.h>
+//Matlab files for inverse dynamics
+#include "/home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/include/inv_dyn_hyq.h"
+#include "/home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/src/inv_dyn_hyq.cpp"
+#include "/home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/src/inv_dyn_hyq_data.cpp"
+#include "/home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/include/rtwtypes.h"
 
 namespace gazebo
 {
@@ -108,7 +113,7 @@ void HyQJointAngleControl::Load( physics::ModelPtr parent, sdf::ElementPtr sdf )
 	this->rosNode.reset(new ros::NodeHandle("hyq_gazebo_client"));
 
 	// Configure Timer and callback function
-	this->pubTimer = this->rosNode->createTimer(ros::Duration(0.001), &HyQJointAngleControl::low_control_callback,this);
+	this->pubTimer = this->rosNode->createTimer(ros::Duration(this->update_time), &HyQJointAngleControl::low_control_callback,this);
 
 
 	math::Angle angle_initial;
@@ -151,12 +156,15 @@ void HyQJointAngleControl::Load( physics::ModelPtr parent, sdf::ElementPtr sdf )
 	// Spin up the queue helper thread.
 	this->rosQueueThread = std::thread(std::bind(&HyQJointAngleControl::QueueThread, this));
 
-
+	this->inv_dyn_obj.initialize();
 
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void HyQJointAngleControl::low_control_callback(const ros::TimerEvent& event){
+
+	double time_ini = this->get_wall_time();
+	double time_cpu_ini = this->get_cpu_time(); 
 
 	/*if (this->cont_it < 0) {
 		this->cont_it++;
@@ -185,8 +193,11 @@ void HyQJointAngleControl::low_control_callback(const ros::TimerEvent& event){
 	
 	}
 
-	//for (int i = 0; i < 12 ; i++) std::cout << "joint " << i+1 << " " << this->joint_pos_ref[i] << "\n"; 
-	//std::cout << "\n\n";
+	//ros::Time time2 = ros::Time::now();
+	std::cout << (this->get_wall_time() - time_ini) << "\n";
+	this->delta_cpu_time = this->get_cpu_time() - time_cpu_ini;
+	std::cout << (this->get_cpu_time() - time_cpu_ini) << "\n";
+	std::cout << (this->delta_cpu_time) << "\n\n";
 
 
 }
@@ -195,10 +206,29 @@ void HyQJointAngleControl::update_joint_state(){
 	math::Angle angle_joint;
 	for (int i = 0; i < this->joints.size(); i++){
 		this->joint_pos[i] = (this->joints[i])->GetAngle(0).Radian();
+		double old_vel = this->joint_vel[i];
 		this->joint_vel[i] = (this->joints[i])->GetVelocity(0);
-		std::cout << "joint " << i+1 << " " << this->joint_pos[i] << " vel: " << this->joint_vel[i] << "\n";
+		this->joint_accel[i] = 0;//(this->joint_vel[i] - old_vel)/(this->update_time);
+		//std::cout << "joint " << i+1 << " " << this->joint_pos[i] << " vel: " << this->joint_vel[i] << " accel: " << this->joint_accel[i] << "\n";
 	}
-	std::cout << "\n\n";
+	//std::cout << "\n\n";
+	
+	math::Vector3 hyq_linear_vel, hyq_angular_vel;
+	hyq_linear_vel = this->model->GetWorldLinearVel();
+	hyq_angular_vel = this->model->GetWorldAngularVel();
+	
+	this->hyq_cm_vel[0] = hyq_linear_vel[0];
+	this->hyq_cm_vel[1] = hyq_linear_vel[1];
+	this->hyq_cm_vel[2] = hyq_linear_vel[2];
+	this->hyq_cm_vel[3] = hyq_angular_vel [0];
+	this->hyq_cm_vel[4] = hyq_angular_vel [1];
+	this->hyq_cm_vel[5] = hyq_angular_vel [2];
+	
+	/*for (int i = 0; i < 6; i++){
+		std::cout << "trunv" << i+1 << " " << this->hyq_cm_vel[i] << "\n";
+	}
+	std::cout << "\n\n";*/
+
 }
 
 void HyQJointAngleControl::joint_control(){
@@ -216,7 +246,16 @@ void HyQJointAngleControl::joint_control(){
 		else this->cont_control_it = 0;
 
 		if (this->cont_control_it == 0){
-			this->joint_actuator[i] = this->KP_joint*(this->joint_pos_ref[i] - this->joint_pos[i]) + this->KD_joint*(this->joint_vel_ref[i] - this->joint_vel[i]);
+			/*for (int i = 0; i < 6; i++){
+				std::cout << "trunv" << i+1 << " " << this->hyq_cm_vel[i] << "\n";
+			}
+			std::cout << "\n\n";*/
+	
+
+			//Update torque from inverse dynamics
+			this->inverse_dynamics();
+			
+			this->joint_actuator[i] = this->KP_joint*(this->joint_pos_ref[i] - this->joint_pos[i]) + this->KD_joint*(this->joint_vel_ref[i] - this->joint_vel[i]) + this->inv_dyn_tau[i];
 		}
 
 		(this->joints[i])->SetForce(0, (this->joint_actuator[i]));
@@ -238,6 +277,27 @@ void HyQJointAngleControl::joint_control(){
 
 }
 
+void HyQJointAngleControl::inverse_dynamics(){
+
+	//Update all the inputs from the model
+	for(int i = 0; i < this->joints.size(); i++){
+		this->inv_dyn_obj.rtU.q[i] = this->joint_pos[i];
+		this->inv_dyn_obj.rtU.qd[i] = this->joint_vel[i];
+		this->inv_dyn_obj.rtU.qdd[i] = this->joint_accel[i];
+	}
+	for(int i = 0; i < 6; i++){
+		this->inv_dyn_obj.rtU.trunk_v[i] = this->hyq_cm_vel[i];
+	}
+	
+	//Step model
+	this->inv_dyn_obj.step();
+
+	//Get outputs
+	for(int i = 0; i < this->joints.size(); i++){
+		this->inv_dyn_tau[i] = this->inv_dyn_obj.rtY.tau[i];
+	}
+
+}
 
 
 	// Handle an incoming message from ROS
@@ -282,6 +342,21 @@ void HyQJointAngleControl::QueueThread()
 	  }
 }
 
+
+// Return the Wall time expended
+double HyQJointAngleControl::get_wall_time(){
+   		 struct timeval time;
+   		 if (gettimeofday(&time,NULL)){
+        	//  Handle error
+       		return 0;
+    	}
+    		return (double)time.tv_sec + (double)time.tv_usec * .000001;
+	}
+
+	// Return the time expended by the CPU
+double HyQJointAngleControl::get_cpu_time(){
+    		return (double)clock() / CLOCKS_PER_SEC;
+}
 
 
 }

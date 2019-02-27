@@ -3,7 +3,13 @@
 
 CMakeFiles/HyQJointAngleControl.dir/src/hyq_joint_angle_control.cpp.o
  /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/include/hyq_joint_angle_control.h
+ /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/include/inv_dyn_hyq.h
+ /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/include/rtw_continuous.h
+ /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/include/rtw_solver.h
+ /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/include/rtwtypes.h
  /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/src/hyq_joint_angle_control.cpp
+ /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/src/inv_dyn_hyq.cpp
+ /home/schulze/hyq_workspace/src/hyq-description/gazebo_plugins/src/inv_dyn_hyq_data.cpp
  /opt/ros/kinetic/include/boost_161_condition_variable.h
  /opt/ros/kinetic/include/boost_161_pthread_condition_variable.h
  /opt/ros/kinetic/include/boost_161_pthread_condition_variable_fwd.h

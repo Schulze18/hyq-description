@@ -7,7 +7,7 @@
 			<robotNamespace>/hyq</robotNamespace>
 			<robotSimType>dls_gazebo_interface/DLSHWSim</robotSimType>
 			<controlPeriod>0.004</controlPeriod>
-		</plugin>
+		</plugin>-->
 
 		<plugin filename="libgazebo_ros_p3d.so" name="gazebo_ros_p3d">
 			<robotNamespace>/hyq</robotNamespace>
@@ -19,7 +19,7 @@
 			<gaussianNoise>0</gaussianNoise>
 			<alwaysOn>true</alwaysOn>
 			<updateRate>250.0</updateRate>
-		</plugin> -->
+		</plugin>
 		<plugin name="hyq_control" filename="$(find hyq_description)/gazebo_plugins/build/libHyQJointAngleControl.so"/> 
 	</gazebo>
 

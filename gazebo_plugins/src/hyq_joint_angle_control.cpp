@@ -58,6 +58,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+//Message types
+#include <sensor_msgs/Imu.h> 
+#include <std_msgs/Float64MultiArray.h> 
 
 namespace gazebo
 {
@@ -91,6 +94,8 @@ void HyQJointAngleControl::Load( physics::ModelPtr parent, sdf::ElementPtr sdf )
 	this->model = parent; 
 	this->joints = this->model->GetJoints();
 	
+	sensor_msgs::Imu imu_test;
+
 	math::Pose pose_hyq_test;
 	//pose_hyq_test.pos.z = 5;
 	//pose_hyq_test.pos.x = 5;
@@ -105,6 +110,21 @@ void HyQJointAngleControl::Load( physics::ModelPtr parent, sdf::ElementPtr sdf )
 	// Configure Timer and callback function
 	this->pubTimer = this->rosNode->createTimer(ros::Duration(0.001), &HyQJointAngleControl::low_control_callback,this);
 
+
+	math::Angle angle_initial;
+	for (int i = 0; i < this->joints.size(); i++){
+		std::cout << "Name joint " << i+1 << ": " << (this->joints[i])->GetName() << "\n";
+
+
+		//angle_initial.SetFromRadian(this->joint_pos_ref[i]);
+		/*(this->joints[i])->SetPosition(0,this->joint_pos_ref[i]);
+		//this->joint_pos_ref[i] = (this->joints[i])->GetAngle(0).Radian();
+		//std::cout << "joint " << i+1 << " " << this->joint_pos_ref[i] << " vel: " << this->joint_vel_ref[i] << "\n";
+		std::cout << "joint " << i+1 << " " << (this->joints[i])->GetAngle(0).Radian() << "\n";
+		//this->joint_vel[i] = (this->joints[i])->GetVelocity(0);*/
+
+	}
+
 	//std:string joint_name;
 	/*this->pid_joint = common::PID(10, 0, 0.1);
 	for (int i = 0; i < 12; i++){
@@ -116,18 +136,46 @@ void HyQJointAngleControl::Load( physics::ModelPtr parent, sdf::ElementPtr sdf )
        		this->jointController->SetPositionPID((joint_test[i])->GetName(), this->pid_joint);
 
 	}*/
+
+
+	//Topic to receive new joint position reference
+	
+	//Create and subscribe to a topic with Quaternion type
+	ros::SubscribeOptions so = ros::SubscribeOptions::create<std_msgs::Float64MultiArray>(
+	"/" + this->model->GetName() + "/hyq_joint_ref",10,
+	boost::bind(&HyQJointAngleControl::OnRosMsg, this, _1), ros::VoidPtr(), &this->rosQueue);
+
+	// Store the subscriber for convenience.
+	this->rosSub_ref = this->rosNode->subscribe(so);
+
+	// Spin up the queue helper thread.
+	this->rosQueueThread = std::thread(std::bind(&HyQJointAngleControl::QueueThread, this));
+
+
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 void HyQJointAngleControl::low_control_callback(const ros::TimerEvent& event){
 
-	if (this->cont_it < 5000) {
+	/*if (this->cont_it < 0) {
 		this->cont_it++;
 		this->flag_inicio = 0;
 	}
 	else {
 		this->flag_inicio = 1;
+	}*/
+	this->flag_inicio = 1;
+	/*if (this->cont_it < 10000) {
+		this->cont_it++;
 	}
+	else {
+		this->joint_pos_ref[1] = 0.6;
+		this->joint_pos_ref[4] = -0.6;
+		this->joint_pos_ref[7] = 0.6;
+		this->joint_pos_ref[10] = -0.6;
+	}*/
+
 
 	if (this->flag_inicio == 1) {
 
@@ -136,6 +184,10 @@ void HyQJointAngleControl::low_control_callback(const ros::TimerEvent& event){
 		this->joint_control();
 	
 	}
+
+	//for (int i = 0; i < 12 ; i++) std::cout << "joint " << i+1 << " " << this->joint_pos_ref[i] << "\n"; 
+	//std::cout << "\n\n";
+
 
 }
 
@@ -158,7 +210,7 @@ void HyQJointAngleControl::joint_control(){
 	
 	//std:string joint_name;
 
-	for (int i = 0; i < this->joints.size(); i++){
+	for (int i = 0; i < this->joints.size(); i = i+1){
 		
 		if (this->cont_control_it < 4) this->cont_control_it++;
 		else this->cont_control_it = 0;
@@ -185,6 +237,51 @@ void HyQJointAngleControl::joint_control(){
 	//std::cout << "\n\n";
 
 }
+
+
+
+	// Handle an incoming message from ROS
+	// param[in] _msg A float value that is used to set the velocity of the Iris Rotors
+void HyQJointAngleControl::OnRosMsg(const std_msgs::Float64MultiArrayConstPtr &msg)
+	{
+		//this->flag_inicio = 1;
+		/*this->joint_pos_ref[0] = msg->orientation_covariance[0];
+		this->joint_pos_ref[1] = msg->orientation_covariance[1];
+		this->joint_pos_ref[2] = msg->orientation_covariance[2];
+		this->joint_pos_ref[3] = msg->orientation_covariance[3];
+		this->joint_pos_ref[4] = msg->orientation_covariance[4];
+		this->joint_pos_ref[5] = msg->orientation_covariance[5];
+		this->joint_pos_ref[6] = msg->orientation_covariance[6];
+		this->joint_pos_ref[7] = msg->orientation_covariance[7];
+		this->joint_pos_ref[8] = msg->orientation_covariance[8];
+		this->joint_pos_ref[9] = msg->angular_velocity_covariance[0];
+		this->joint_pos_ref[10] = msg->angular_velocity_covariance[1];
+		this->joint_pos_ref[11] = msg->angular_velocity_covariance[2];*/
+
+		this->joint_pos_ref[0] = msg->data[0];
+		this->joint_pos_ref[1] = msg->data[1];
+		this->joint_pos_ref[2] = msg->data[2];
+		this->joint_pos_ref[3] = msg->data[3];
+		this->joint_pos_ref[4] = msg->data[4];
+		this->joint_pos_ref[5] = msg->data[5];
+		this->joint_pos_ref[6] = msg->data[6];
+		this->joint_pos_ref[7] = msg->data[7];
+		this->joint_pos_ref[8] = msg->data[8];
+		this->joint_pos_ref[9] = msg->data[9];
+		this->joint_pos_ref[10] = msg->data[10];
+		this->joint_pos_ref[11] = msg->data[11];
+	}
+
+	// ROS helper function that processes messages
+void HyQJointAngleControl::QueueThread()
+	{
+	  static const double timeout = 0.01;
+	  while (this->rosNode->ok())
+	  {
+	    this->rosQueue.callAvailable(ros::WallDuration(timeout));
+	  }
+}
+
 
 
 }

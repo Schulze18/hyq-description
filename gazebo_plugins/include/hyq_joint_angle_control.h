@@ -43,6 +43,9 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+//Message types
+#include <sensor_msgs/Imu.h>
+#include <std_msgs/Float64MultiArray.h> 
 
 namespace gazebo
 {
@@ -65,6 +68,12 @@ namespace gazebo
 	
 		public: void joint_control();
 		
+
+		//Methods to update joint reference
+		public: void OnRosMsg(const std_msgs::Float64MultiArrayConstPtr& msg);
+
+		public: void QueueThread();
+
 		//Variables
 		private: physics::WorldPtr world;
       
@@ -83,6 +92,7 @@ namespace gazebo
 		private: double joint_vel[12];
 
 		private: double joint_pos_ref[12] = {0, 0.8, -1.6, 0, -0.8, 1.6, 0, 0.8, -1.6, 0, -0.8, 1.6};
+		//private: double joint_pos_ref[12] = {-0.2, 0.75, -1.5, -0.2, -0.75, 1.5, -0.2, 0.75, -1.5, -0.2, -0.75, 1.5};
 
 		private: double joint_vel_ref[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -93,15 +103,28 @@ namespace gazebo
 		// A flag to initialize the controller only after the first reference command
 		private: int flag_inicio = 1; 
 
+
+		//Joint low control parameters
 		private: int cont_it = 0; 
 
 		private: int cont_control_it = 0; 
 
-		private: double KP_joint = 60;
+		private: double KP_joint = 260;//260; //250;
 		
-		private: double KD_joint = 1;
+		private: double KD_joint = 8; //10;
 
-    
+
+		//Variables from topic to receive joint reference
+		// A ROS callbackqueue that helps process messages
+		private: ros::CallbackQueue rosQueue;
+
+		// A thread the keeps running the rosQueue
+		private: std::thread rosQueueThread; 
+
+		// A ROS subscriber
+		private: ros::Subscriber rosSub_ref;    
+
+
    };
 
 }
